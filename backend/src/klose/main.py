@@ -48,8 +48,13 @@ async def root():
 
 
 # Serve frontend in production (must be after all API routes)
-frontend_dist = os.path.join(os.path.dirname(__file__), "..", "..", "..", "frontend", "dist")
-if os.path.isdir(frontend_dist):
+# Try multiple paths: local dev structure and Docker container structure
+_candidates = [
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "frontend", "dist"),
+    "/app/frontend/dist",
+]
+frontend_dist = next((p for p in _candidates if os.path.isdir(p)), None)
+if frontend_dist and os.path.isdir(frontend_dist):
     app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="static-assets")
 
     @app.get("/{full_path:path}")
