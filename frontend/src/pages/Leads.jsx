@@ -1,9 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api';
 
+function fmtINR(n) {
+  if (n == null) return '';
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)} Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)} L`;
+  return `₹${Math.round(n).toLocaleString('en-IN')}`;
+}
+
 const STATUS_OPTIONS = ['All', 'Hot', 'Warm', 'Cold', 'New'];
 const SOURCE_OPTIONS = ['All', 'Instagram', 'Facebook', 'Google Ads', 'Referral', 'Walk-in', 'Website'];
 const BHK_OPTIONS = ['All', '1 BHK', '2 BHK', '3 BHK', '4 BHK', '5+ BHK'];
+
+const INPUT_CLASS = "w-full px-4 py-3 rounded-xl bg-[var(--color-surface)] border border-[var(--color-outline-variant)] text-sm focus:ring-2 focus:ring-[var(--color-gold)] focus:border-transparent";
 
 function intentColor(score) {
   if (score >= 80) return 'bg-emerald-500';
@@ -32,10 +41,120 @@ function initials(name) {
     .toUpperCase();
 }
 
+function LeadFormModal({ lead, onClose, onSaved }) {
+  const isEdit = !!lead;
+  const [form, setForm] = useState({
+    name: lead?.name || '',
+    phone: lead?.phone || '',
+    email: lead?.email || '',
+    source: lead?.source || 'Instagram',
+    budget_min: lead?.budget_min || '',
+    budget_max: lead?.budget_max || '',
+    preferred_bhk: lead?.preferred_bhk || lead?.bhk || '2 BHK',
+    preferred_location: lead?.preferred_location || lead?.location || '',
+    notes: lead?.notes || '',
+  });
+  const [saving, setSaving] = useState(false);
+
+  function update(key, value) {
+    setForm((p) => ({ ...p, [key]: value }));
+  }
+
+  async function handleSubmit() {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      const payload = {
+        ...form,
+        budget_min: form.budget_min ? Number(form.budget_min) : null,
+        budget_max: form.budget_max ? Number(form.budget_max) : null,
+      };
+      if (isEdit) {
+        await api.updateLead(lead.id, payload);
+      } else {
+        await api.createLead(payload);
+      }
+      onSaved();
+    } catch (err) {
+      alert(err.message || 'Failed to save lead');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto editorial-shadow">
+        <h3 className="font-headline text-2xl text-[var(--color-navy-900)] mb-6">
+          {isEdit ? 'Edit Lead' : 'New Lead'}
+        </h3>
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">Name *</label>
+            <input className={INPUT_CLASS} value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Full name" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">Phone</label>
+              <input className={INPUT_CLASS} value={form.phone} onChange={(e) => update('phone', e.target.value)} placeholder="+91 98765 43210" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">Email</label>
+              <input className={INPUT_CLASS} type="email" value={form.email} onChange={(e) => update('email', e.target.value)} placeholder="email@example.com" />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">Source</label>
+            <select className={INPUT_CLASS} value={form.source} onChange={(e) => update('source', e.target.value)}>
+              {SOURCE_OPTIONS.filter((s) => s !== 'All').map((s) => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">Budget Min</label>
+              <input className={INPUT_CLASS} type="number" value={form.budget_min} onChange={(e) => update('budget_min', e.target.value)} placeholder="e.g. 5000000" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">Budget Max</label>
+              <input className={INPUT_CLASS} type="number" value={form.budget_max} onChange={(e) => update('budget_max', e.target.value)} placeholder="e.g. 10000000" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">Preferred BHK</label>
+              <select className={INPUT_CLASS} value={form.preferred_bhk} onChange={(e) => update('preferred_bhk', e.target.value)}>
+                {BHK_OPTIONS.filter((b) => b !== 'All').map((b) => <option key={b}>{b}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">Preferred Location</label>
+              <input className={INPUT_CLASS} value={form.preferred_location} onChange={(e) => update('preferred_location', e.target.value)} placeholder="e.g. Bandra West" />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">Notes</label>
+            <textarea className={INPUT_CLASS + " h-24 resize-none"} value={form.notes} onChange={(e) => update('notes', e.target.value)} placeholder="Any additional notes..." />
+          </div>
+        </div>
+        <div className="flex gap-3 mt-8">
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-[var(--color-surface-high)] text-sm font-medium">Cancel</button>
+          <button onClick={handleSubmit} disabled={saving} className="flex-1 py-3 rounded-xl bg-[#152040] text-white text-sm font-medium disabled:opacity-50">
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Leads() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editingLead, setEditingLead] = useState(null);
+  const [openMenuId, setOpenMenuId] = useState(null);
   const [filters, setFilters] = useState({
     status: '',
     source: '',
@@ -85,13 +204,43 @@ export default function Leads() {
   function handleSearch(e) {
     const val = e.target.value;
     setFilters((p) => ({ ...p, search: val }));
-    // debounce-like: fetch after user stops typing
     clearTimeout(handleSearch._t);
     handleSearch._t = setTimeout(() => fetchLeads({ ...filters, search: val }), 400);
   }
 
+  async function handleDelete(id) {
+    if (!window.confirm('Are you sure you want to delete this lead?')) return;
+    try {
+      await api.deleteLead(id);
+      fetchLeads(filters);
+    } catch (err) {
+      alert(err.message || 'Failed to delete lead');
+    }
+  }
+
+  function handleEdit(lead) {
+    setEditingLead(lead);
+    setShowForm(true);
+    setOpenMenuId(null);
+  }
+
+  function handleFormSaved() {
+    setShowForm(false);
+    setEditingLead(null);
+    fetchLeads(filters);
+  }
+
   return (
     <div className="space-y-6 pb-24">
+      {/* Lead Form Modal */}
+      {showForm && (
+        <LeadFormModal
+          lead={editingLead}
+          onClose={() => { setShowForm(false); setEditingLead(null); }}
+          onSaved={handleFormSaved}
+        />
+      )}
+
       {/* Header */}
       <div>
         <h1 className="font-headline text-5xl text-[var(--color-navy-900)] leading-tight">
@@ -223,16 +372,39 @@ export default function Leads() {
                       <span className="truncate">{lead.location || lead.city || 'Location N/A'}</span>
                     </div>
                   </div>
-                  <button className="opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-outline)]">
-                    <span className="material-symbols-outlined">more_vert</span>
-                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => setOpenMenuId(openMenuId === lead.id ? null : lead.id)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-outline)]"
+                    >
+                      <span className="material-symbols-outlined">more_vert</span>
+                    </button>
+                    {openMenuId === lead.id && (
+                      <div className="absolute right-0 top-8 bg-white rounded-xl editorial-shadow py-1 z-20 min-w-[140px]">
+                        <button
+                          onClick={() => handleEdit(lead)}
+                          className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--color-on-surface)] hover:bg-[var(--color-surface-high)] transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">edit</span>
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => { setOpenMenuId(null); handleDelete(lead.id); }}
+                          className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--color-error)] hover:bg-red-50 transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Budget */}
                 <div className="text-sm text-[var(--color-on-surface-variant)]">
                   <span className="font-medium text-[var(--color-on-surface)]">Budget: </span>
                   {lead.budget_min && lead.budget_max
-                    ? `${lead.budget_min} - ${lead.budget_max}`
+                    ? `${fmtINR(lead.budget_min)} - ${fmtINR(lead.budget_max)}`
                     : lead.budget || 'Not specified'}
                 </div>
 
@@ -262,7 +434,10 @@ export default function Leads() {
           })}
 
           {/* Empty / New Opportunity card */}
-          <div className="border-2 border-dashed border-[var(--color-outline-variant)] rounded-2xl flex flex-col items-center justify-center py-16 gap-3 text-[var(--color-outline)] hover:border-[var(--color-gold)] hover:text-[var(--color-gold-deep)] transition-colors cursor-pointer group">
+          <div
+            onClick={() => { setEditingLead(null); setShowForm(true); }}
+            className="border-2 border-dashed border-[var(--color-outline-variant)] rounded-2xl flex flex-col items-center justify-center py-16 gap-3 text-[var(--color-outline)] hover:border-[var(--color-gold)] hover:text-[var(--color-gold-deep)] transition-colors cursor-pointer group"
+          >
             <span className="material-symbols-outlined text-4xl group-hover:scale-110 transition-transform">
               person_add
             </span>
@@ -280,7 +455,10 @@ export default function Leads() {
       )}
 
       {/* FAB */}
-      <button className="fixed bottom-8 right-8 w-14 h-14 bg-[var(--color-gold)] text-[var(--color-gold-deep)] rounded-full editorial-shadow flex items-center justify-center hover:scale-105 transition-transform z-50">
+      <button
+        onClick={() => { setEditingLead(null); setShowForm(true); }}
+        className="fixed bottom-8 right-8 w-14 h-14 bg-[var(--color-gold)] text-[var(--color-gold-deep)] rounded-full editorial-shadow flex items-center justify-center hover:scale-105 transition-transform z-50"
+      >
         <span className="material-symbols-outlined text-[28px]">add</span>
       </button>
     </div>

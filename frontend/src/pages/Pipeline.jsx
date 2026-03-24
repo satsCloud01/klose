@@ -13,6 +13,8 @@ const STAGES = [
   { id: 'possession', name: 'Possession', color: 'primary', border: 'border-l-[var(--color-navy-900)]', bg: 'bg-[var(--color-surface-low)]', text: 'text-[var(--color-navy-900)]', badge: 'bg-[var(--color-navy-800)] text-white' },
 ];
 
+const INPUT_CLS = "w-full px-4 py-3 rounded-xl bg-[var(--color-surface)] border border-[var(--color-outline-variant)] text-sm focus:ring-2 focus:ring-[var(--color-gold)] focus:border-transparent";
+
 function formatValue(v) {
   if (!v) return '\u20B90';
   const num = typeof v === 'number' ? v : parseFloat(v);
@@ -31,7 +33,87 @@ function timeAgo(date) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function DealCard({ deal, stage, index }) {
+function DealFormModal({ deal, onClose, onSave }) {
+  const isEdit = !!deal;
+  const [form, setForm] = useState({
+    lead_name: deal?.lead_name || deal?.name || '',
+    property_name: deal?.property_name || '',
+    stage: deal?.stage || 'lead_capture',
+    value: deal?.value || '',
+    probability: deal?.probability ?? '',
+    expected_close_date: deal?.expected_close_date || '',
+    notes: deal?.notes || '',
+  });
+
+  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+
+  const handleSubmit = async () => {
+    const payload = {
+      ...form,
+      value: form.value ? Number(form.value) : 0,
+      probability: form.probability !== '' ? Number(form.probability) : null,
+    };
+    try {
+      if (isEdit) {
+        await api.updateDeal(deal.id, payload);
+      } else {
+        await api.createDeal(payload);
+      }
+      onSave();
+    } catch (e) {
+      alert(e.message || 'Failed to save deal');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto editorial-shadow">
+        <h3 className="font-headline text-2xl text-[var(--color-navy-900)] mb-6">{isEdit ? 'Edit Deal' : 'New Deal'}</h3>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-on-surface-variant)] mb-1">Lead Name</label>
+            <input value={form.lead_name} onChange={e => set('lead_name', e.target.value)} className={INPUT_CLS} placeholder="Lead name" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-on-surface-variant)] mb-1">Property Name</label>
+            <input value={form.property_name} onChange={e => set('property_name', e.target.value)} className={INPUT_CLS} placeholder="Property name" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-on-surface-variant)] mb-1">Stage</label>
+            <select value={form.stage} onChange={e => set('stage', e.target.value)} className={INPUT_CLS}>
+              {STAGES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-on-surface-variant)] mb-1">Value</label>
+            <input type="number" value={form.value} onChange={e => set('value', e.target.value)} className={INPUT_CLS} placeholder="Deal value" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-on-surface-variant)] mb-1">Probability (0-100)</label>
+            <input type="number" min="0" max="100" value={form.probability} onChange={e => set('probability', e.target.value)} className={INPUT_CLS} placeholder="Probability %" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-on-surface-variant)] mb-1">Expected Close Date</label>
+            <input type="date" value={form.expected_close_date} onChange={e => set('expected_close_date', e.target.value)} className={INPUT_CLS} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-on-surface-variant)] mb-1">Notes</label>
+            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3} className={INPUT_CLS} placeholder="Deal notes..." />
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-8">
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-[var(--color-surface-high)] text-sm font-medium">Cancel</button>
+          <button onClick={handleSubmit} className="flex-1 py-3 rounded-xl bg-[#152040] text-white text-sm font-medium">Save</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DealCard({ deal, stage, index, onEdit, onDelete }) {
   return (
     <Draggable draggableId={String(deal.id)} index={index}>
       {(provided, snapshot) => (
@@ -39,12 +121,26 @@ function DealCard({ deal, stage, index }) {
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className={`bg-white rounded-xl p-4 editorial-shadow border-l-4 ${stage.border} mb-3 cursor-grab active:cursor-grabbing transition-shadow ${
+          className={`group relative bg-white rounded-xl p-4 editorial-shadow border-l-4 ${stage.border} mb-3 cursor-grab active:cursor-grabbing transition-shadow ${
             snapshot.isDragging ? 'shadow-2xl ring-2 ring-[var(--color-gold)]/30 rotate-1' : 'hover:shadow-lg'
           }`}
         >
-          <div className="flex items-start justify-between mb-2">
-            <h4 className="font-headline text-lg text-[var(--color-navy-900)] leading-tight">{deal.lead_name || deal.name || 'Unknown'}</h4>
+          {/* Delete button - visible on hover */}
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(deal); }}
+            className="absolute top-2 right-2 w-7 h-7 rounded-lg flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+            title="Delete deal"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
+          </button>
+
+          <div className="flex items-start justify-between mb-2 pr-6">
+            <h4
+              className="font-headline text-lg text-[var(--color-navy-900)] leading-tight cursor-pointer hover:underline"
+              onClick={() => onEdit(deal)}
+            >
+              {deal.lead_name || deal.name || 'Unknown'}
+            </h4>
             {deal.probability != null && (
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stage.badge}`}>
                 {deal.probability}%
@@ -75,7 +171,7 @@ function DealCard({ deal, stage, index }) {
   );
 }
 
-function StageColumn({ stage, deals }) {
+function StageColumn({ stage, deals, onEdit, onDelete }) {
   const totalValue = deals.reduce((sum, d) => sum + (typeof d.value === 'number' ? d.value : parseFloat(d.value) || 0), 0);
 
   return (
@@ -103,7 +199,7 @@ function StageColumn({ stage, deals }) {
               </div>
             ) : (
               deals.map((deal, i) => (
-                <DealCard key={deal.id} deal={deal} stage={stage} index={i} />
+                <DealCard key={deal.id} deal={deal} stage={stage} index={i} onEdit={onEdit} onDelete={onDelete} />
               ))
             )}
             {provided.placeholder}
@@ -117,11 +213,13 @@ function StageColumn({ stage, deals }) {
 export default function Pipeline() {
   const [pipeline, setPipeline] = useState({});
   const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingDeal, setEditingDeal] = useState(null);
 
-  useEffect(() => {
+  const fetchPipeline = () => {
+    setLoading(true);
     api.getPipeline()
       .then(data => {
-        // Normalize: API may return { stages: [...] } or { stage_id: [...deals] }
         if (data.stages && Array.isArray(data.stages)) {
           const map = {};
           data.stages.forEach(s => { map[s.id || s.stage] = s.deals || []; });
@@ -145,7 +243,30 @@ export default function Pipeline() {
         setPipeline(empty);
       })
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { fetchPipeline(); }, []);
+
+  const handleSave = () => {
+    setShowForm(false);
+    setEditingDeal(null);
+    fetchPipeline();
+  };
+
+  const handleEdit = (deal) => {
+    setEditingDeal(deal);
+    setShowForm(true);
+  };
+
+  const handleDelete = async (deal) => {
+    if (!window.confirm('Delete this deal?')) return;
+    try {
+      await api.deleteDeal(deal.id);
+      fetchPipeline();
+    } catch (e) {
+      alert(e.message || 'Failed to delete deal');
+    }
+  };
 
   const onDragEnd = (result) => {
     if (!result.destination) return;
@@ -178,19 +299,7 @@ export default function Pipeline() {
 
     if (sourceStage !== destStage) {
       api.updateDeal(dealId, { stage: destStage }).catch(() => {
-        // Revert on failure — refetch
-        api.getPipeline().then(data => {
-          if (Array.isArray(data)) {
-            const map = {};
-            STAGES.forEach(s => { map[s.id] = []; });
-            data.forEach(deal => {
-              const sid = (deal.stage || 'lead_capture').toLowerCase().replace(/\s+/g, '_');
-              if (!map[sid]) map[sid] = [];
-              map[sid].push(deal);
-            });
-            setPipeline(map);
-          }
-        });
+        fetchPipeline();
       });
     }
   };
@@ -218,7 +327,10 @@ export default function Pipeline() {
             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>filter_list</span>
             Filter
           </button>
-          <button className="px-5 py-2.5 rounded-xl text-sm font-medium bg-[var(--color-navy-900)] text-white hover:opacity-90 transition-opacity flex items-center gap-2 editorial-shadow">
+          <button
+            onClick={() => { setEditingDeal(null); setShowForm(true); }}
+            className="px-5 py-2.5 rounded-xl text-sm font-medium bg-[var(--color-navy-900)] text-white hover:opacity-90 transition-opacity flex items-center gap-2 editorial-shadow"
+          >
             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
             New Deal
           </button>
@@ -233,10 +345,21 @@ export default function Pipeline() {
               key={stage.id}
               stage={stage}
               deals={pipeline[stage.id] || []}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
             />
           ))}
         </div>
       </DragDropContext>
+
+      {/* Modal */}
+      {showForm && (
+        <DealFormModal
+          deal={editingDeal}
+          onClose={() => { setShowForm(false); setEditingDeal(null); }}
+          onSave={handleSave}
+        />
+      )}
     </div>
   );
 }

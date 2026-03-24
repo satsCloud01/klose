@@ -1,9 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api';
 
+function fmtINR(n) {
+  if (n == null) return '';
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)} Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)} L`;
+  return `₹${Math.round(n).toLocaleString('en-IN')}`;
+}
+
 const TYPE_OPTIONS = ['All', 'Apartment', 'Villa', 'Penthouse', 'Plot', 'Townhouse'];
 const PRICE_OPTIONS = ['All', 'Under 50L', '50L - 1Cr', '1Cr - 2Cr', '2Cr - 5Cr', '5Cr+'];
 const STATUS_OPTIONS = ['All', 'Ready to Move', 'Under Construction', 'Pre-Launch', 'Sold Out'];
+const CONSTRUCTION_STATUS_OPTIONS = ['Not Started', 'Foundation', 'Structure', 'Finishing', 'Completed'];
+const BHK_OPTIONS = ['1 BHK', '2 BHK', '3 BHK', '4 BHK', '5+ BHK'];
+
+const INPUT_CLASS = "w-full px-4 py-3 rounded-xl bg-[var(--color-surface)] border border-[var(--color-outline-variant)] text-sm focus:ring-2 focus:ring-[var(--color-gold)] focus:border-transparent";
 
 const PLACEHOLDER_IMAGES = [
   'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600&h=750&fit=crop',
@@ -23,11 +34,144 @@ function statusBadgeColor(status) {
   return 'bg-[var(--color-surface-high)] text-[var(--color-on-surface)]';
 }
 
+function PropertyFormModal({ property, onClose, onSaved }) {
+  const isEdit = !!property;
+  const [form, setForm] = useState({
+    name: property?.name || '',
+    developer: property?.developer || '',
+    location: property?.location || property?.address || '',
+    type: property?.type || 'Apartment',
+    bhk: property?.bhk || '2 BHK',
+    price_min: property?.price_min || '',
+    price_max: property?.price_max || '',
+    carpet_area: property?.carpet_area || property?.area || '',
+    rera_number: property?.rera_number || '',
+    status: property?.status || 'Under Construction',
+    construction_status: property?.construction_status || 'Structure',
+    description: property?.description || '',
+  });
+  const [saving, setSaving] = useState(false);
+
+  function update(key, value) {
+    setForm((p) => ({ ...p, [key]: value }));
+  }
+
+  async function handleSubmit() {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      const payload = {
+        ...form,
+        price_min: form.price_min ? Number(form.price_min) : null,
+        price_max: form.price_max ? Number(form.price_max) : null,
+      };
+      if (isEdit) {
+        await api.updateProperty(property.id, payload);
+      } else {
+        await api.createProperty(payload);
+      }
+      onSaved();
+    } catch (err) {
+      alert(err.message || 'Failed to save property');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto editorial-shadow">
+        <h3 className="font-headline text-2xl text-[var(--color-navy-900)] mb-6">
+          {isEdit ? 'Edit Property' : 'New Property'}
+        </h3>
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">Name *</label>
+            <input className={INPUT_CLASS} value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Property name" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">Developer</label>
+              <input className={INPUT_CLASS} value={form.developer} onChange={(e) => update('developer', e.target.value)} placeholder="Developer name" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">Location</label>
+              <input className={INPUT_CLASS} value={form.location} onChange={(e) => update('location', e.target.value)} placeholder="e.g. Bandra West" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">Type</label>
+              <select className={INPUT_CLASS} value={form.type} onChange={(e) => update('type', e.target.value)}>
+                {TYPE_OPTIONS.filter((t) => t !== 'All').map((t) => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">BHK</label>
+              <select className={INPUT_CLASS} value={form.bhk} onChange={(e) => update('bhk', e.target.value)}>
+                {BHK_OPTIONS.map((b) => <option key={b}>{b}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">Price Min</label>
+              <input className={INPUT_CLASS} type="number" value={form.price_min} onChange={(e) => update('price_min', e.target.value)} placeholder="e.g. 5000000" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">Price Max</label>
+              <input className={INPUT_CLASS} type="number" value={form.price_max} onChange={(e) => update('price_max', e.target.value)} placeholder="e.g. 10000000" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">Carpet Area</label>
+              <input className={INPUT_CLASS} value={form.carpet_area} onChange={(e) => update('carpet_area', e.target.value)} placeholder="e.g. 1200 sq ft" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">RERA Number</label>
+              <input className={INPUT_CLASS} value={form.rera_number} onChange={(e) => update('rera_number', e.target.value)} placeholder="e.g. P51900028732" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">Status</label>
+              <select className={INPUT_CLASS} value={form.status} onChange={(e) => update('status', e.target.value)}>
+                {STATUS_OPTIONS.filter((s) => s !== 'All').map((s) => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">Construction</label>
+              <select className={INPUT_CLASS} value={form.construction_status} onChange={(e) => update('construction_status', e.target.value)}>
+                {CONSTRUCTION_STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-[var(--color-on-surface-variant)] uppercase tracking-wider mb-1 block">Description</label>
+            <textarea className={INPUT_CLASS + " h-24 resize-none"} value={form.description} onChange={(e) => update('description', e.target.value)} placeholder="Property description..." />
+          </div>
+        </div>
+        <div className="flex gap-3 mt-8">
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-[var(--color-surface-high)] text-sm font-medium">Cancel</button>
+          <button onClick={handleSubmit} disabled={saving} className="flex-1 py-3 rounded-xl bg-[#152040] text-white text-sm font-medium disabled:opacity-50">
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Properties() {
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('grid');
   const [compareIds, setCompareIds] = useState(new Set());
+  const [compareData, setCompareData] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editingProperty, setEditingProperty] = useState(null);
   const [filters, setFilters] = useState({
     type: '',
     price_range: '',
@@ -82,8 +226,38 @@ export default function Properties() {
     return prop.image || prop.image_url || prop.thumbnail || PLACEHOLDER_IMAGES[idx % PLACEHOLDER_IMAGES.length];
   }
 
+  async function handleDelete(id) {
+    if (!window.confirm('Are you sure you want to delete this property?')) return;
+    try {
+      await api.deleteProperty(id);
+      fetchProperties(filters);
+    } catch (err) {
+      alert(err.message || 'Failed to delete property');
+    }
+  }
+
+  function handleEdit(prop) {
+    setEditingProperty(prop);
+    setShowForm(true);
+  }
+
+  function handleFormSaved() {
+    setShowForm(false);
+    setEditingProperty(null);
+    fetchProperties(filters);
+  }
+
   return (
     <div className="space-y-6 pb-24">
+      {/* Property Form Modal */}
+      {showForm && (
+        <PropertyFormModal
+          property={editingProperty}
+          onClose={() => { setShowForm(false); setEditingProperty(null); }}
+          onSaved={handleFormSaved}
+        />
+      )}
+
       {/* Header */}
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-gold)] mb-2">
@@ -123,7 +297,10 @@ export default function Properties() {
             List
           </button>
         </div>
-        <button className="flex items-center gap-2 bg-[var(--color-navy-900)] text-white px-5 py-2.5 rounded-full text-sm font-bold uppercase tracking-wider hover:bg-[var(--color-navy-800)] transition-colors">
+        <button
+          onClick={() => { setEditingProperty(null); setShowForm(true); }}
+          className="flex items-center gap-2 bg-[var(--color-navy-900)] text-white px-5 py-2.5 rounded-full text-sm font-bold uppercase tracking-wider hover:bg-[var(--color-navy-800)] transition-colors"
+        >
           <span className="material-symbols-outlined text-[18px]">add</span>
           New Listing
         </button>
@@ -217,10 +394,21 @@ export default function Properties() {
                         </span>
                       )}
                     </div>
-                    {/* Favorite on hover */}
-                    <button className="absolute top-3 right-3 w-9 h-9 bg-white/80 backdrop-blur rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white">
-                      <span className="material-symbols-outlined text-[20px] text-[var(--color-error)]">favorite</span>
-                    </button>
+                    {/* Edit/Delete on hover */}
+                    <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => handleEdit(prop)}
+                        className="w-9 h-9 bg-white/80 backdrop-blur rounded-full flex items-center justify-center hover:bg-white"
+                      >
+                        <span className="material-symbols-outlined text-[20px] text-[var(--color-navy-900)]">edit</span>
+                      </button>
+                      <button
+                        onClick={() => handleDelete(prop.id)}
+                        className="w-9 h-9 bg-white/80 backdrop-blur rounded-full flex items-center justify-center hover:bg-white"
+                      >
+                        <span className="material-symbols-outlined text-[20px] text-[var(--color-error)]">delete</span>
+                      </button>
+                    </div>
                     {/* Compare checkbox */}
                     <label className="absolute bottom-3 right-3 flex items-center gap-1.5 bg-white/90 backdrop-blur rounded-full px-3 py-1.5 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity text-xs font-medium">
                       <input
@@ -243,7 +431,7 @@ export default function Properties() {
                     </div>
                     <p className="text-lg font-semibold text-[var(--color-navy-900)]">
                       {prop.price_min && prop.price_max
-                        ? `${prop.price_min} - ${prop.price_max}`
+                        ? `${fmtINR(prop.price_min)} - ${fmtINR(prop.price_max)}`
                         : prop.price || prop.price_range || 'Price on Request'}
                     </p>
                     {(prop.bhk || prop.bedrooms) && (
@@ -303,7 +491,7 @@ export default function Properties() {
                     <div>
                       <p className="text-lg font-semibold text-[var(--color-navy-900)]">
                         {prop.price_min && prop.price_max
-                          ? `${prop.price_min} - ${prop.price_max}`
+                          ? `${fmtINR(prop.price_min)} - ${fmtINR(prop.price_max)}`
                           : prop.price || prop.price_range || 'Price on Request'}
                       </p>
                       {(prop.bhk || prop.bedrooms) && (
@@ -313,15 +501,31 @@ export default function Properties() {
                         </p>
                       )}
                     </div>
-                    <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-[var(--color-on-surface-variant)]">
-                      <input
-                        type="checkbox"
-                        checked={isComparing}
-                        onChange={() => toggleCompare(prop.id)}
-                        className="accent-[var(--color-navy-900)]"
-                      />
-                      Compare
-                    </label>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => handleEdit(prop)}
+                          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--color-surface-high)] transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[18px] text-[var(--color-navy-900)]">edit</span>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(prop.id)}
+                          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-50 transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[18px] text-[var(--color-error)]">delete</span>
+                        </button>
+                      </div>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-[var(--color-on-surface-variant)]">
+                        <input
+                          type="checkbox"
+                          checked={isComparing}
+                          onChange={() => toggleCompare(prop.id)}
+                          className="accent-[var(--color-navy-900)]"
+                        />
+                        Compare
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -338,6 +542,57 @@ export default function Properties() {
         </div>
       )}
 
+      {/* Compare Modal */}
+      {compareData && compareData.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setCompareData(null)} />
+          <div className="relative bg-white rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-auto editorial-shadow">
+            <div className="sticky top-0 bg-white z-10 px-8 py-5 border-b border-[var(--color-outline-variant)]/20 flex items-center justify-between">
+              <h3 className="font-headline text-2xl text-[var(--color-navy-900)]">Property Comparison</h3>
+              <button onClick={() => setCompareData(null)} className="w-9 h-9 rounded-full hover:bg-[var(--color-surface-high)] flex items-center justify-center transition-colors">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="p-8">
+              <div className="grid gap-6" style={{ gridTemplateColumns: `repeat(${compareData.length}, 1fr)` }}>
+                {/* Images */}
+                {compareData.map((p, i) => (
+                  <div key={p.id || i} className="space-y-4">
+                    <div className="aspect-[4/3] rounded-xl overflow-hidden bg-[var(--color-surface-high)]">
+                      <img src={p.image_url || p.image || PLACEHOLDER_IMAGES[i % PLACEHOLDER_IMAGES.length]} alt={p.name} className="w-full h-full object-cover" />
+                    </div>
+                    <h4 className="font-headline text-xl text-[var(--color-navy-900)]">{p.name}</h4>
+                    <p className="text-sm text-[var(--color-on-surface-variant)]">{p.location}</p>
+                  </div>
+                ))}
+              </div>
+              {/* Comparison rows */}
+              <div className="mt-8 space-y-0">
+                {[
+                  { label: 'Price', get: p => p.price_min && p.price_max ? `${fmtINR(p.price_min)} - ${fmtINR(p.price_max)}` : fmtINR(p.price_min || p.price_max) || '—' },
+                  { label: 'Type', get: p => p.type || '—' },
+                  { label: 'BHK', get: p => p.bhk || '—' },
+                  { label: 'Carpet Area', get: p => p.carpet_area ? `${p.carpet_area.toLocaleString('en-IN')} sq.ft` : '—' },
+                  { label: 'Developer', get: p => p.developer || '—' },
+                  { label: 'Status', get: p => p.construction_status === 'ready' ? 'Ready to Move' : p.construction_status || p.status || '—' },
+                  { label: 'RERA', get: p => p.rera_verified ? `✓ ${p.rera_number || 'Verified'}` : 'Not Verified' },
+                ].map((row, ri) => (
+                  <div key={row.label} className={`grid gap-6 py-3 ${ri % 2 === 0 ? 'bg-[var(--color-surface)]' : ''} px-4 rounded-lg`} style={{ gridTemplateColumns: `repeat(${compareData.length}, 1fr)` }}>
+                    {compareData.map((p, i) => (
+                      <div key={p.id || i}>
+                        {i === 0 && <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-on-surface-variant)] mb-1">{row.label}</p>}
+                        {i > 0 && <p className="text-[10px] font-bold uppercase tracking-widest text-transparent mb-1">{row.label}</p>}
+                        <p className="text-sm font-medium text-[var(--color-navy-900)]">{row.get(p)}</p>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Compare bar */}
       {compareIds.size >= 2 && (
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-[var(--color-navy-900)] text-white py-4 px-6 flex items-center justify-between editorial-shadow">
@@ -351,7 +606,18 @@ export default function Properties() {
             >
               Clear
             </button>
-            <button className="bg-[var(--color-gold)] text-[var(--color-gold-deep)] px-6 py-2.5 rounded-full text-sm font-bold hover:brightness-110 transition">
+            <button
+              onClick={async () => {
+                try {
+                  const data = await api.compareProperties([...compareIds]);
+                  setCompareData(Array.isArray(data) ? data : data.properties || []);
+                } catch {
+                  // Fallback: use local data
+                  setCompareData(properties.filter(p => compareIds.has(p.id)));
+                }
+              }}
+              className="bg-[var(--color-gold)] text-[var(--color-gold-deep)] px-6 py-2.5 rounded-full text-sm font-bold hover:brightness-110 transition"
+            >
               Compare Now
             </button>
           </div>

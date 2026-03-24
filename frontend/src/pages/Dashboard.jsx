@@ -4,9 +4,9 @@ import TourWizard from '../components/TourWizard';
 
 function fmt(n) {
   if (n == null) return '--';
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
-  return `$${n.toLocaleString()}`;
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)} Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)} L`;
+  return `₹${Math.round(n).toLocaleString('en-IN')}`;
 }
 
 const channelColors = {

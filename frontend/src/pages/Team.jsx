@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../api';
 
 const fallbackLeaderboard = [
@@ -25,20 +25,77 @@ const fallbackStats = { total_agents: 5, avg_conversion: 26.4, monthly_revenue: 
 
 const focusChips = ['Underperforming', 'Inactive >48h', 'High Commissions', 'Certifications Due'];
 
+const inputClass = "w-full px-4 py-3 rounded-xl bg-[var(--color-surface)] border border-[var(--color-outline-variant)] text-sm focus:ring-2 focus:ring-[var(--color-gold)] focus:border-transparent";
+
 function initials(name) {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2);
 }
 
 function fmtRevenue(n) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
-  return `$${n}`;
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)} Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)} L`;
+  return `₹${Math.round(n).toLocaleString('en-IN')}`;
 }
 
 function capacityColor(pct) {
   if (pct >= 90) return 'bg-red-500';
   if (pct >= 70) return 'bg-[#e3c285]';
   return 'bg-emerald-500';
+}
+
+function MemberEditModal({ member, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    name: member?.name || '',
+    role: member?.role || '',
+    phone: member?.phone || '',
+    email: member?.email || '',
+  });
+  const [saving, setSaving] = useState(false);
+
+  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+
+  const handleSubmit = async () => {
+    setSaving(true);
+    try {
+      await api.updateTeamMember(member.id, form);
+      onSaved();
+    } catch {
+      onSaved();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto editorial-shadow">
+        <h3 className="font-headline text-2xl text-[var(--color-navy-900)] mb-6">Edit Team Member</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-[#000828]/60 mb-1">Name</label>
+            <input value={form.name} onChange={e => set('name', e.target.value)} className={inputClass} placeholder="Full name" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-[#000828]/60 mb-1">Role</label>
+            <input value={form.role} onChange={e => set('role', e.target.value)} className={inputClass} placeholder="e.g. Senior Agent" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-[#000828]/60 mb-1">Phone</label>
+            <input value={form.phone} onChange={e => set('phone', e.target.value)} className={inputClass} placeholder="+91 98765 43210" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-[#000828]/60 mb-1">Email</label>
+            <input value={form.email} onChange={e => set('email', e.target.value)} className={inputClass} placeholder="member@company.com" type="email" />
+          </div>
+        </div>
+        <div className="flex gap-3 mt-8">
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-[var(--color-surface-high)] text-sm font-medium">Cancel</button>
+          <button onClick={handleSubmit} disabled={saving} className="flex-1 py-3 rounded-xl bg-[#152040] text-white text-sm font-medium disabled:opacity-50">
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function Team() {
@@ -48,8 +105,11 @@ export default function Team() {
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [hoveredLeader, setHoveredLeader] = useState(null);
+  const [showMemberForm, setShowMemberForm] = useState(false);
+  const [editingMember, setEditingMember] = useState(null);
+  const rulesRef = useRef(null);
 
-  useEffect(() => {
+  const fetchData = () => {
     Promise.all([
       api.getTeam().catch(() => null),
       api.getLeaderboard().catch(() => null),
@@ -59,10 +119,40 @@ export default function Team() {
       setTeam(t?.members || t || fallbackTeam);
       setLeaderboard(lb?.leaderboard || lb || fallbackLeaderboard);
       setStats(s || fallbackStats);
-      setRules(r?.rules || r || fallbackRules);
+      // Normalize API rules: {key, enabled} → {id, name, active, description}
+      const rawRules = r?.rules || r || fallbackRules;
+      setRules(Array.isArray(rawRules) ? rawRules.map((rule, i) => ({
+        id: rule.id || rule.key || i,
+        name: rule.name || rule.key || `Rule ${i+1}`,
+        active: rule.active ?? rule.enabled ?? false,
+        description: (rule.description || '').replace('$5M', '₹5 Cr'),
+      })) : fallbackRules);
       setLoading(false);
     });
-  }, []);
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const handleEditClose = () => { setShowMemberForm(false); setEditingMember(null); };
+  const handleEditSaved = () => { handleEditClose(); fetchData(); };
+  const openEdit = (member) => { setEditingMember(member); setShowMemberForm(true); };
+
+  const handleToggleRule = async (ruleId) => {
+    setRules(prev => prev.map(r => {
+      if (r.id === ruleId) return { ...r, active: !r.active };
+      return r;
+    }));
+    try {
+      const updated = rules.map(r => r.id === ruleId ? { key: r.id, enabled: !r.active } : { key: r.id, enabled: r.active });
+      await api.updateAssignmentRules(updated);
+    } catch {
+      // keep local state even if API fails
+    }
+  };
+
+  const scrollToRules = () => {
+    rulesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
 
   const st = stats || fallbackStats;
 
@@ -102,7 +192,7 @@ export default function Team() {
                 return (
                   <div
                     key={leader.id}
-                    className={`flex items-center gap-5 p-4 rounded-xl transition-all duration-200 cursor-pointer ${
+                    className={`group flex items-center gap-5 p-4 rounded-xl transition-all duration-200 cursor-pointer ${
                       isHovered ? 'bg-[#152040] text-white scale-[1.02]' : 'bg-[#f7f9fc]'
                     }`}
                     onMouseEnter={() => setHoveredLeader(leader.id)}
@@ -136,6 +226,17 @@ export default function Team() {
                         </span>
                       </div>
                     </div>
+
+                    {/* Edit Button */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openEdit(leader); }}
+                      className={`opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-lg ${
+                        isHovered ? 'hover:bg-white/10' : 'hover:bg-[#000828]/5'
+                      }`}
+                      title="Edit member"
+                    >
+                      <span className={`material-symbols-outlined text-lg ${isHovered ? 'text-white/70' : 'text-[#000828]/50'}`}>edit</span>
+                    </button>
                   </div>
                 );
               })}
@@ -143,7 +244,7 @@ export default function Team() {
           </div>
 
           {/* Assignment Rules */}
-          <div className="col-span-12 lg:col-span-4 bg-[#152040] rounded-2xl editorial-shadow p-6 text-white flex flex-col">
+          <div ref={rulesRef} className="col-span-12 lg:col-span-4 bg-[#152040] rounded-2xl editorial-shadow p-6 text-white flex flex-col">
             <p className="text-xs font-semibold tracking-[0.2em] uppercase text-white/40 mb-1">Operational Logic</p>
             <h2 className="font-headline text-xl mb-5">Assignment Rules</h2>
             <div className="space-y-3 flex-1">
@@ -151,15 +252,24 @@ export default function Team() {
                 <div key={rule.id} className="bg-white/5 backdrop-blur rounded-xl p-4">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-sm font-semibold text-white">{rule.name}</p>
-                    <span className={`material-symbols-outlined text-xl ${rule.active ? 'text-emerald-400' : 'text-white/30'}`}>
-                      {rule.active ? 'toggle_on' : 'toggle_off'}
-                    </span>
+                    <button
+                      onClick={() => handleToggleRule(rule.id)}
+                      className="focus:outline-none transition-colors"
+                      title={rule.active ? 'Disable rule' : 'Enable rule'}
+                    >
+                      <span className={`material-symbols-outlined text-xl ${rule.active ? 'text-emerald-400 hover:text-emerald-300' : 'text-white/30 hover:text-white/50'}`}>
+                        {rule.active ? 'toggle_on' : 'toggle_off'}
+                      </span>
+                    </button>
                   </div>
                   <p className="text-xs text-white/50">{rule.description}</p>
                 </div>
               ))}
             </div>
-            <button className="mt-6 w-full py-3 rounded-xl bg-gradient-to-r from-[#e3c285] to-amber-400 text-[#000828] font-semibold text-sm hover:brightness-110 transition">
+            <button
+              onClick={scrollToRules}
+              className="mt-6 w-full py-3 rounded-xl bg-gradient-to-r from-[#e3c285] to-amber-400 text-[#000828] font-semibold text-sm hover:brightness-110 transition"
+            >
               Modify Flow Logic
             </button>
           </div>
@@ -209,6 +319,15 @@ export default function Team() {
         </div>
 
       </div>
+
+      {/* Member Edit Modal */}
+      {showMemberForm && editingMember && (
+        <MemberEditModal
+          member={editingMember}
+          onClose={handleEditClose}
+          onSaved={handleEditSaved}
+        />
+      )}
     </div>
   );
 }

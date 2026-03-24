@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/team", tags=["team"])
 # In-memory assignment rules
 _assignment_rules = [
     {"name": "Round Robin", "key": "round_robin", "enabled": True, "description": "Equally distribute new leads across available agents in rotation"},
-    {"name": "Luxury Tier Lock", "key": "luxury_lock", "enabled": True, "description": "Leads > $5M routed to Senior Agents only"},
+    {"name": "Luxury Tier Lock", "key": "luxury_lock", "enabled": True, "description": "Leads > ₹5 Cr routed to Senior Agents only"},
     {"name": "Geo-Routing", "key": "geo_routing", "enabled": False, "description": "Assign based on zip code proximity to agent territory"},
 ]
 

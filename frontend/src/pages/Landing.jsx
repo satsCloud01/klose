@@ -31,20 +31,19 @@ export default function Landing() {
     <div className="bg-[#000828] text-white overflow-x-hidden">
       <TourWizard isOpen={showTour} onClose={() => setShowTour(false)} />
 
-      {/* ══════════ SECTION 1: Hero with Video ══════════ */}
-      <section className="relative h-screen flex items-center justify-center overflow-hidden">
-        {/* Background Video */}
+      {/* ══════════ SECTION 1: Hero ══════════ */}
+      <section className="relative h-screen flex items-center justify-center overflow-hidden bg-[#000828]">
+        {/* Background Video — positioned in lower half only */}
         <video
           autoPlay muted loop playsInline
-          className="absolute inset-0 w-full h-full object-cover opacity-30"
-          poster="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1920&q=80"
+          className="absolute bottom-0 left-0 w-full h-[60%] object-cover opacity-15"
         >
           <source src="https://videos.pexels.com/video-files/3571264/3571264-uhd_2560_1440_30fps.mp4" type="video/mp4" />
         </video>
+        <div className="absolute bottom-0 left-0 w-full h-[60%] bg-gradient-to-b from-[#000828] via-transparent to-[#000828]" />
 
-        {/* Dark overlay gradient */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#000828] via-[#000828]/50 to-[#000828]" />
-        <div className="absolute top-0 left-0 w-full h-20 bg-[#000828]" />
+        {/* Radial glow behind title */}
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-[0.07]" style={{ background: 'radial-gradient(circle, #e3c285 0%, transparent 70%)' }} />
 
         {/* Subtle grid pattern */}
         <div className="absolute inset-0 opacity-[0.03]" style={{
@@ -118,7 +117,7 @@ export default function Landing() {
               </h2>
               <p className="mt-8 text-lg text-white/40 leading-relaxed font-light">
                 Klose is not a CRM. It's an empire-grade operating system for India's finest real estate professionals
-                — from Bandra to Belvedere, from namaste to sold. Flawlessly.
+                — from Bandra to Golf Links, from namaste to sold. Flawlessly.
               </p>
               <div className="mt-10 flex items-center gap-6">
                 <div className="text-center">

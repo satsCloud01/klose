@@ -6,7 +6,7 @@ const DEAL_ID = 10;
 const defaultMessages = [
   {
     role: 'ai',
-    text: 'Good afternoon. I\'ve reviewed the Belvedere Heights file and current market comps. The listing is priced at $2.85M, which sits 4.2% above the median comp. However, buyer engagement signals are strong — 88% interest score. I recommend we anchor our counter at $2.72M and negotiate toward $2.78M. Shall I walk you through the valuation logic?',
+    text: 'Good afternoon. I\'ve reviewed the Oberoi Realty Worli file and current circle rate comps. The listing is priced at ₹28.5 Cr, which sits 4.2% above the median comp in the micro-market. However, buyer engagement signals are strong — 88% intent score. I recommend we anchor our counter at ₹27.2 Cr and negotiate toward ₹27.8 Cr. Shall I walk you through the ready reckoner valuation?',
   },
   {
     role: 'user',
@@ -14,23 +14,23 @@ const defaultMessages = [
   },
   {
     role: 'ai',
-    text: 'Three comparable sales within 0.4 miles closed in the last 90 days: 1) 412 Belvedere Dr — $2.68M (3,420 sqft), 2) 88 Summit Terrace — $2.74M (3,610 sqft), 3) 1100 Ridge Lane — $2.81M (3,800 sqft). Adjusting for square footage and lot premium, the subject property\'s fair market value is approximately $2.73M–$2.79M. This gives us room to anchor at $2.72M without appearing unreasonable.',
+    text: 'Three comparable registrations within 1 km closed in the last 90 days: 1) Lodha World One, Lower Parel — ₹26.8 Cr (3,420 sq.ft carpet), 2) Raheja Vivarea, Mahalaxmi — ₹27.4 Cr (3,610 sq.ft carpet), 3) Lodha Altamount, Altamount Rd — ₹28.1 Cr (3,800 sq.ft carpet). Adjusting for carpet area and floor premium, the subject property\'s fair market value is approximately ₹27.3–27.9 Cr. This gives us room to anchor at ₹27.2 Cr without appearing unreasonable.',
   },
 ];
 
 const defaultComps = {
   subject: {
-    address: '1420 Belvedere Heights Dr',
-    city: 'Beverly Hills, CA 90210',
-    list_price: 2850000,
+    address: 'Tower A, Oberoi Realty',
+    city: 'Worli, Mumbai 400018',
+    list_price: 285000000,
     sqft: 3650,
     beds: 5,
     baths: 4,
     image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600&h=300&fit=crop',
   },
   comps: [
-    { id: 1, address: '412 Belvedere Dr', sold_price: 2680000, sqft: 3420, image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=120&h=80&fit=crop' },
-    { id: 2, address: '88 Summit Terrace', sold_price: 2740000, sqft: 3610, image: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=120&h=80&fit=crop' },
+    { id: 1, address: 'Lodha World One, Lower Parel', sold_price: 268000000, sqft: 3420, image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=120&h=80&fit=crop' },
+    { id: 2, address: 'Raheja Vivarea, Mahalaxmi', sold_price: 274000000, sqft: 3610, image: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=120&h=80&fit=crop' },
   ],
 };
 
@@ -40,17 +40,17 @@ const defaultHealth = {
 };
 
 const defaultInsights = [
-  { icon: 'show_chart', text: 'Median price in this ZIP rose 2.1% in the last quarter' },
-  { icon: 'schedule', text: 'Average days on market: 28 (down from 35)' },
-  { icon: 'groups', text: '3 competing offers detected within 0.5 miles' },
-  { icon: 'trending_up', text: 'Buyer demand index: 8.4/10 (very strong)' },
+  { icon: 'show_chart', text: 'Circle rate in this micro-market rose 2.1% in the last quarter' },
+  { icon: 'schedule', text: 'Average days on market: 28 (down from 35 in South Mumbai)' },
+  { icon: 'groups', text: '3 competing offers detected within 1 km radius' },
+  { icon: 'trending_up', text: 'Ready reckoner value up 6.2% YoY — strong seller position' },
 ];
 
 function fmt(n) {
   if (n == null) return '--';
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
-  return `$${n.toLocaleString()}`;
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)} Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(2)} L`;
+  return `₹${Math.round(n).toLocaleString('en-IN')}`;
 }
 
 export default function NegotiationCoach() {
@@ -72,8 +72,20 @@ export default function NegotiationCoach() {
       } else if (hist?.messages?.length) {
         setMessages(hist.messages.map(m => ({ role: m.role === 'assistant' ? 'ai' : 'user', text: m.content || m.text })));
       }
-      if (c) setComps(c);
-      if (h) setHealth(h);
+      // API returns array of comps — merge into defaultComps structure
+      if (Array.isArray(c) && c.length) {
+        setComps(prev => ({
+          ...prev,
+          comps: c.slice(0, 3).map(p => ({
+            id: p.id,
+            address: p.name || p.address || 'Unknown',
+            sold_price: p.price || p.sold_price || 0,
+            sqft: p.carpet_area || p.sqft || 0,
+            image: p.image_url || prev.comps?.[0]?.image || '',
+          })),
+        }));
+      }
+      if (h) setHealth(prev => ({ ...prev, ...h }));
     });
   }, []);
 
@@ -126,7 +138,7 @@ export default function NegotiationCoach() {
           Active Negotiation
         </p>
         <h2 className="font-headline text-5xl lg:text-6xl text-[var(--color-navy-900)]">
-          The Residences at <span className="italic text-[var(--color-gold)]">Belvedere Heights</span>
+          Oberoi Realty, <span className="italic text-[var(--color-gold)]">Worli</span>
         </h2>
         <div className="flex items-center gap-2 mt-3">
           <span className="material-symbols-outlined text-base text-[var(--color-gold)]">auto_awesome</span>
@@ -297,9 +309,9 @@ export default function NegotiationCoach() {
               <p className="text-xs text-[var(--color-on-surface-variant)] mt-1">{comps.subject.city}</p>
               <p className="text-xl font-bold text-[var(--color-gold)] mt-2">{fmt(comps.subject.list_price)}</p>
               <div className="flex gap-4 mt-2 text-xs text-[var(--color-on-surface-variant)]">
-                <span>{comps.subject.beds} Beds</span>
-                <span>{comps.subject.baths} Baths</span>
-                <span>{comps.subject.sqft?.toLocaleString()} sqft</span>
+                <span>{comps.subject.beds} BHK</span>
+                <span>{comps.subject.baths} Bath</span>
+                <span>{comps.subject.sqft?.toLocaleString('en-IN')} sq.ft</span>
               </div>
 
               <div className="mt-5 pt-4 border-t border-gray-100">
