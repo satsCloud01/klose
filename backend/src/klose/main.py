@@ -42,20 +42,18 @@ for name in router_modules:
         print(f"Router '{name}' not loaded: {e}")
 
 
-@app.get("/")
-async def root():
-    return {"app": "Klose CRM", "version": "1.0.0"}
-
-
 # Serve frontend in production (must be after all API routes)
-# Try multiple paths: local dev structure and Docker container structure
 _candidates = [
     os.path.join(os.path.dirname(__file__), "..", "..", "..", "frontend", "dist"),
     "/app/frontend/dist",
 ]
 frontend_dist = next((p for p in _candidates if os.path.isdir(p)), None)
-if frontend_dist and os.path.isdir(frontend_dist):
+if frontend_dist:
     app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="static-assets")
+
+    @app.get("/")
+    async def serve_index():
+        return FileResponse(os.path.join(frontend_dist, "index.html"))
 
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
@@ -63,3 +61,7 @@ if frontend_dist and os.path.isdir(frontend_dist):
         if os.path.isfile(file_path):
             return FileResponse(file_path)
         return FileResponse(os.path.join(frontend_dist, "index.html"))
+else:
+    @app.get("/")
+    async def root():
+        return {"app": "Klose CRM", "version": "1.0.0"}
