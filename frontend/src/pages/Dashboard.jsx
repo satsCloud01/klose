@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import TourWizard from '../components/TourWizard';
 
@@ -36,6 +37,7 @@ export default function Dashboard() {
   const [recommendations, setRecommendations] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showTour, setShowTour] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     Promise.all([
@@ -193,7 +195,7 @@ export default function Dashboard() {
           <div className="bg-white rounded-xl editorial-shadow p-6">
             <div className="flex items-center justify-between mb-5">
               <h3 className="font-headline text-xl text-[var(--color-navy-900)]">Recommended Properties</h3>
-              <button className="text-sm text-[var(--color-gold)] hover:underline font-medium">Browse All</button>
+              <button onClick={() => navigate('/properties')} className="text-sm text-[var(--color-gold)] hover:underline font-medium">Browse All</button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {recs.map((prop, i) => (
@@ -275,12 +277,13 @@ export default function Dashboard() {
             <h4 className="font-headline text-lg text-[var(--color-navy-900)] mb-4">Quick Actions</h4>
             <div className="space-y-3">
               {[
-                { icon: 'person_add', label: 'Add New Lead' },
-                { icon: 'add_home', label: 'List Property' },
-                { icon: 'event', label: 'Schedule Visit' },
-                { icon: 'smart_toy', label: 'AI Coach' },
+                { icon: 'person_add', label: 'Add New Lead', path: '/leads' },
+                { icon: 'add_home', label: 'List Property', path: '/properties' },
+                { icon: 'event', label: 'Schedule Visit', path: '/visits' },
+                { icon: 'smart_toy', label: 'AI Coach', path: '/coach' },
               ].map((a) => (
                 <button key={a.label}
+                  onClick={() => navigate(a.path)}
                   className="w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-gray-100 hover:border-[var(--color-gold)] hover:bg-[var(--color-gold)]/5 transition-all text-left group">
                   <span className="material-symbols-outlined text-[var(--color-on-surface-variant)] group-hover:text-[var(--color-gold)] transition-colors">{a.icon}</span>
                   <span className="text-sm font-medium text-[var(--color-navy-900)]">{a.label}</span>
